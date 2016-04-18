@@ -48,12 +48,18 @@ private:
   LogicalRegion get_logical_region(const RegionRequirement &req);
   LogicalRegion get_root_region(const LogicalRegion &handle);
   LogicalRegion get_root_region(const LogicalPartition &handle);
+  // list of all processors
+  std::vector<Processor> all_procs;
 };  // class EbbMapper
 
 // EbbMapper constructor
 EbbMapper::EbbMapper(Machine machine, HighLevelRuntime *rt, Processor local)
   : ShimMapper(machine, rt, local) {
     //printf("Hello from mapper\n");
+
+  Machine::ProcessorQuery query_all_procs =
+    Machine::ProcessorQuery(machine).only_kind(Processor::LOC_PROC);
+  all_procs.insert(all_procs.begin(), query_all_procs.begin(), query_all_procs.end());
 }
 
 LogicalRegion EbbMapper::get_logical_region(const RegionRequirement &req) {
@@ -80,6 +86,11 @@ LogicalRegion EbbMapper::get_root_region(const LogicalPartition &handle) {
 
 void EbbMapper::select_task_options(Task *task) {
   ShimMapper::select_task_options(task);
+
+  if (!task->regions.empty() && task->regions[0].handle_type == SINGULAR) {
+    Color index = get_logical_region_color(task->regions[0].region);
+    task->target_proc = all_procs[index % all_procs.size()];
+  }
 }
 
 bool EbbMapper::map_task(Task *task) {
