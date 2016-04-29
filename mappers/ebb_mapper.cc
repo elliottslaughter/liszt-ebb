@@ -129,25 +129,7 @@ EbbMapper::EbbMapper(Machine machine, Processor local,
 
 Processor EbbMapper::default_policy_select_initial_processor(
                                     MapperContext ctx, const Task &task) {
-  if (false && task.tag != 0) {
-    // all_procs here is a safety modulus
-    int proc_num = (task.tag - 1)%all_procs.size();
-    Processor p = all_procs[proc_num];
-    //printf("Launching Tagged on %llx %lx\n", p.id, task.tag);
-    return p;
-  } else if (!task.regions.empty() &&
-             task.regions[0].handle_type == SINGULAR)
-  {
-    Color index = mapper_rt_get_logical_region_color(ctx, task.regions[0].region);
-    int proc_off = (int(index) / n_nodes)%per_node;
-    int node_off = int(index) % n_nodes;
-    // all_procs here is a safety modulus
-    int proc_num = (node_off*per_node + proc_off)%all_procs.size();
-    Processor p = all_procs[proc_num];
-    //printf("Launching Tagless on %llx %lx\n", p.id, task.tag);
-    return p;
-  }
-  return DefaultMapper::default_policy_select_initial_processor(ctx, task);
+  return local_proc;
 }
 
 void EbbMapper::default_policy_select_target_processors(
@@ -155,7 +137,25 @@ void EbbMapper::default_policy_select_target_processors(
                                     const Task &task,
                                     std::vector<Processor> &target_procs)
 {
-  target_procs.push_back(task.target_proc);
+  if (false && task.tag != 0) {
+    // all_procs here is a safety modulus
+    int proc_num = (task.tag - 1)%all_procs.size();
+    Processor p = all_procs[proc_num];
+    //printf("Launching Tagged on %llx %lx\n", p.id, task.tag);
+    target_procs.push_back(p);
+  } else if (!task.regions.empty() &&
+             task.regions[0].handle_type == SINGULAR) {
+    Color index = mapper_rt_get_logical_region_color(ctx, task.regions[0].region);
+    int proc_off = (int(index) / n_nodes)%per_node;
+    int node_off = int(index) % n_nodes;
+    // all_procs here is a safety modulus
+    int proc_num = (node_off*per_node + proc_off)%all_procs.size();
+    Processor p = all_procs[proc_num];
+    //printf("Launching Tagless on %llx %lx\n", p.id, task.tag);
+    target_procs.push_back(p);
+  } else {
+    target_procs.push_back(task.target_proc);
+  }
 }
 
 LogicalRegion EbbMapper::default_policy_select_instance_region(
