@@ -191,6 +191,15 @@ void EbbMapper::default_policy_select_constraint_fields(
   AutoImmovableLock guard(active_fields_lock);
   std::set<FieldID> &active = active_fields[fs];
   fields.insert(fields.begin(), active.begin(), active.end());
+
+  printf("Fields for field space %d (size %lu) on mapper for proc %llx\n",
+         fs.get_id(), active.size(), local_proc.id);
+  for (std::vector<FieldID>::iterator it = fields.begin();
+       it != fields.end(); ++it) {
+    const char *name;
+    mapper_rt_retrieve_name(ctx, fs, *it, name);
+    printf("  %s (%d)\n", name, *it);
+  }
 }
 
 bool EbbMapper::default_policy_select_close_virtual(const MapperContext ctx,
@@ -226,9 +235,11 @@ void EbbMapper::handle_message(const MapperContext ctx,
 
 void EbbMapper::add_field(FieldSpace fs, FieldID fid)
 {
+  printf("Consider field %d (field space %d)\n", fid, fs.get_id());
   AutoImmovableLock guard(active_fields_lock);
   std::set<FieldID> &active = active_fields[fs];
-  if (active.find(fid) == active.end()) {
+  if (!active.count(fid)) {
+    printf("  Adding field %d (field space %d) current size %lu on local proc %llx\n", fid, fs.get_id(), active.size(), local_proc.id);
     // broadcast and record a new field
     //Realm::Serialization::DynamicBufferSerializer buffer(sizeof(FieldSpace) + sizeof(FieldID));
     //buffer << (int)MAPPER_RECORD_FIELD;
