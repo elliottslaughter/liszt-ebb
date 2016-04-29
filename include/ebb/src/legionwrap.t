@@ -240,6 +240,35 @@ function LW.get_new_task_id()
   return new_task_id
 end
 
+function legion_task_wrapper(return_type)
+  -- look at the return type of the task we're wrapping to emit the right postamble code
+  local rt = return_type
+  local wrapper = nil
+  if terralib.sizeof(rt) > 0 then
+    wrapper = terra(data : &opaque, datalen : LW.size_t, userdata : &opaque, userlen : LW.size_t, proc_id : LW.legion_lowlevel_id_t)
+      var task : LW.legion_task_t,
+          regions : &LW.legion_physical_region_t,
+	  num_regions : uint32,
+	  ctx : LW.legion_context_t,
+	  runtime : LW.legion_runtime_t
+      LW.legion_task_preamble(data, datalen, proc_id, &task, &regions, &num_regions, &ctx, &runtime)
+      var rv : rt
+      LW.legion_task_postamble(runtime, ctx, [&opaque](&rv), terralib.sizeof(rt))
+    end
+  else
+    wrapper = terra(data : &opaque, datalen : LW.size_t, userdata : &opaque, userlen : LW.size_t, proc_id : LW.legion_lowlevel_id_t)
+      var task : LW.legion_task_t,
+          regions : &LW.legion_physical_region_t,
+	  num_regions : uint32,
+	  ctx : LW.legion_context_t,
+	  runtime : LW.legion_runtime_t
+      LW.legion_task_preamble(data, datalen, proc_id, &task, &regions, &num_regions, &ctx, &runtime)
+      LW.legion_task_postamble(runtime, ctx, [&opaque](0), 0)
+    end
+  end
+  return wrapper
+end
+
 -- Get task if for a given task. Register the task and create a new id if the
 -- task is not memoized. Tasks are memoized by the function version name, which
 -- corresponds to a { function, type, proc, blocksize, relation, subset }. Note
@@ -257,6 +286,7 @@ local RegisterAndGetTaskId = Util.memoize_from(3,
 function(ufv_name, on_gpu, task_func)
   -- new task id
   local TID = LW.get_new_task_id()
+  local task_func = legion_task_wrapper(task_func:gettype().returntype)
   -- register given task function with the task id
   local terra register()
     escape if run_config.use_llvm then
